@@ -11,10 +11,10 @@
 		<OutputPath>$(ProjectDir)../../test_output</OutputPath>
 	</PropertyGroup>
 	<ItemGroup>
-		<PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.0.0" PrivateAssets="all" />
-		<PackageReference Include="MSTest.TestAdapter" Version="2.2.8" PrivateAssets="all" />
-		<PackageReference Include="MSTest.TestFramework" Version="2.2.8" PrivateAssets="all" />
-		<PackageReference Include="JunitXml.TestLogger" Version="3.0.98" PrivateAssets="all" />
+		<PackageReference Include="Microsoft.NET.Test.Sdk" PrivateAssets="all" />
+		<PackageReference Include="MSTest.TestAdapter" PrivateAssets="all" />
+		<PackageReference Include="MSTest.TestFramework" PrivateAssets="all" />
+		<PackageReference Include="JunitXml.TestLogger" PrivateAssets="all" />
 		<ProjectReference Include="$(ProjectDir)../BizHawk.Client.Common/BizHawk.Client.Common.csproj" />
 		<None Include="$(ProjectDir)../../Assets/dll/libbizhash.*" CopyToOutputDirectory="PreserveNewest" />
 		<None Include="$(ProjectDir)../../Assets/dll/libzstd.*" CopyToOutputDirectory="PreserveNewest" />

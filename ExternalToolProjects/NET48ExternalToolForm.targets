@@ -7,7 +7,7 @@
 	</PropertyGroup>
 	<ItemGroup>
 		<Reference Include="System.Windows.Forms" />
-		<PackageReference Include="System.Runtime.CompilerServices.Unsafe" Version="5.0.0" />
+		<PackageReference Include="System.Runtime.CompilerServices.Unsafe" />
 		<Reference Include="BizHawk.Client.Common"
 			HintPath="$(ProjectDir)../../output/dll/BizHawk.Client.Common.dll"
 			Private="true" />
