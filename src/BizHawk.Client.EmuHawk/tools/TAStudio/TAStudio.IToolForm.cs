@@ -52,6 +52,16 @@ namespace BizHawk.Client.EmuHawk
 			}
 		}
 
+		protected override void UpdateBefore()
+		{
+			if (CurrentTasMovie.IsAtEnd())
+			{
+				CurrentTasMovie.RecordFrame(CurrentTasMovie.Emulator.Frame, MovieSession.StickySource);
+			}
+		}
+
+		protected override void FastUpdateBefore() => UpdateBefore();
+
 		protected override void GeneralUpdate()
 		{
 			RefreshDialog();
@@ -72,7 +82,7 @@ namespace BizHawk.Client.EmuHawk
 			var refreshNeeded = false;
 			if (Settings.AutoadjustInput)
 			{
-				refreshNeeded = AutoAdjustInput();
+				//refreshNeeded = AutoAdjustInput();
 			}
 
 			CurrentTasMovie.TasSession.UpdateValues(Emulator.Frame, CurrentTasMovie.Branches.Current);

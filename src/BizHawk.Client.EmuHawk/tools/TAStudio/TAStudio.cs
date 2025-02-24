@@ -9,6 +9,7 @@ using BizHawk.Client.EmuHawk.ToolExtensions;
 using BizHawk.Client.EmuHawk.Properties;
 using BizHawk.Common.StringExtensions;
 using BizHawk.Emulation.Common;
+using BizHawk.WinForms.Controls;
 
 namespace BizHawk.Client.EmuHawk
 {
@@ -33,7 +34,6 @@ namespace BizHawk.Client.EmuHawk
 		private readonly List<TasClipboardEntry> _tasClipboard = new List<TasClipboardEntry>();
 		private const string CursorColumnName = "CursorColumn";
 		private const string FrameColumnName = "FrameColumn";
-		private MovieEndAction _originalEndAction; // The movie end behavior selected by the user (that is overridden by TAStudio)
 		private UndoHistoryForm _undoForm;
 		private Timer _autosaveTimer;
 
@@ -119,6 +119,25 @@ namespace BizHawk.Client.EmuHawk
 		public TAStudio()
 		{
 			InitializeComponent();
+			ToolStripMenuItemEx goToFrameMenuItem = new()
+			{
+				ShortcutKeys = Keys.Control | Keys.G,
+				Text = "Go to Frame...",
+			};
+			goToFrameMenuItem.Click += (_, _) =>
+			{
+				MainForm.PauseEmulator();
+				using InputPrompt dialog = new()
+				{
+					Text = "Go to Frame",
+					Message = "Jump/Seek to frame index:",
+					TextInputType = InputPrompt.InputType.Unsigned,
+				};
+				if (this.ShowDialogWithTempMute(dialog).IsOk()) GoToFrame(int.Parse(dialog.PromptText));
+			};
+			EditSubMenu.DropDownItems.Insert(
+				EditSubMenu.DropDownItems.IndexOf(ReselectClipboardMenuItem) + 1,
+				goToFrameMenuItem);
 
 			RecentSubMenu.Image = Resources.Recent;
 			recentMacrosToolStripMenuItem.Image = Resources.Recent;
@@ -145,9 +164,6 @@ namespace BizHawk.Client.EmuHawk
 			TasView.PointedCellChanged += TasView_PointedCellChanged;
 			LastPositionFrame = -1;
 
-			BookMarkControl.LoadedCallback = BranchLoaded;
-			BookMarkControl.SavedCallback = BranchSaved;
-			BookMarkControl.RemovedCallback = BranchRemoved;
 			TasView.MouseLeave += TAStudio_MouseLeave;
 			TasView.CellHovered += (_, e) =>
 			{
@@ -271,14 +287,11 @@ namespace BizHawk.Client.EmuHawk
 			// Attempts to load failed, abort
 			if (!success)
 			{
-				Disengage();
 				return false;
 			}
 
 			MainForm.AddOnScreenMessage("TAStudio engaged");
-			_originalEndAction = Config.Movies.MovieEndAction;
 			MainForm.DisableRewind();
-			Config.Movies.MovieEndAction = MovieEndAction.Record;
 			MainForm.SetMainformMovieInfo();
 			MovieSession.ReadOnly = true;
 			SetSplicer();
@@ -657,7 +670,6 @@ namespace BizHawk.Client.EmuHawk
 			_engaged = false;
 			MainForm.PauseOnFrame = null;
 			MainForm.AddOnScreenMessage("TAStudio disengaged");
-			Config.Movies.MovieEndAction = _originalEndAction;
 			WantsToControlRewind = false;
 			MainForm.EnableRewind(true);
 			MainForm.SetMainformMovieInfo();
@@ -940,7 +952,8 @@ namespace BizHawk.Client.EmuHawk
 			// TODO: columns selected?
 			var selectedRowCount = TasView.SelectedRows.Count();
 			var temp = $"Selected: {selectedRowCount} {(selectedRowCount == 1 ? "frame" : "frames")}, States: {CurrentTasMovie.TasStateManager.Count}";
-			if (_tasClipboard.Any()) temp += $", Clipboard: {_tasClipboard.Count} {(_tasClipboard.Count == 1 ? "frame" : "frames")}";
+			var clipboardCount = _tasClipboard.Count;
+			if (clipboardCount is not 0) temp += $", Clipboard: {clipboardCount} {(clipboardCount is 1 ? "frame" : "frames")}";
 			SplicerStatusLabel.Text = temp;
 		}
 
@@ -1110,29 +1123,22 @@ namespace BizHawk.Client.EmuHawk
 						{
 							framesToRemove.Add(frame);
 						}
-						else
-						{
-							break;
-						}
 					}
 
 					// Deleting this frame requires rewinding a frame.
 					CurrentTasMovie.ChangeLog.AddInputBind(Emulator.Frame - 1, true, $"Bind Input; Delete {Emulator.Frame - 1}");
 					bool wasRecording = CurrentTasMovie.ChangeLog.IsRecording;
 					CurrentTasMovie.ChangeLog.IsRecording = false;
+
 					CurrentTasMovie.RemoveFrames(framesToRemove);
 					foreach (int f in framesToRemove)
 					{
 						CurrentTasMovie.LagLog.RemoveHistoryAt(f + 1); // Removes from WasLag
 					}
-					CurrentTasMovie.ChangeLog.IsRecording = wasRecording;
 
-					CurrentTasMovie.LastPositionStable = true;
+					CurrentTasMovie.ChangeLog.IsRecording = wasRecording;
 					GoToLastEmulatedFrameIfNecessary(Emulator.Frame - 1);
-					if (!MainForm.HoldFrameAdvance)
-					{
-						MainForm.PauseOnFrame = LastPositionFrame;
-					}
+					DoAutoRestore();
 					return true;
 				}
 

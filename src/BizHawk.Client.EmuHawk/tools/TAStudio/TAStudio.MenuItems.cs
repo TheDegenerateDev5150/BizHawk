@@ -768,7 +768,6 @@ namespace BizHawk.Client.EmuHawk
 			LoadBranchOnDoubleclickMenuItem.Checked = Settings.LoadBranchOnDoubleClick;
 			BindMarkersToInputMenuItem.Checked = CurrentTasMovie.BindMarkersToInput;
 			CopyIncludesFrameNoMenuItem.Checked = Settings.CopyIncludesFrameNo;
-			AutoadjustInputMenuItem.Checked = Settings.AutoadjustInput;
 		}
 
 		private void SetMaxUndoLevelsMenuItem_Click(object sender, EventArgs e)
@@ -802,9 +801,6 @@ namespace BizHawk.Client.EmuHawk
 
 		private void CopyIncludesFrameNoMenuItem_Click(object sender, EventArgs e)
 			=> Settings.CopyIncludesFrameNo = !Settings.CopyIncludesFrameNo;
-
-		private void AutoadjustInputMenuItem_Click(object sender, EventArgs e)
-			=> Settings.AutoadjustInput = !Settings.AutoadjustInput;
 
 		private void SetAutosaveIntervalMenuItem_Click(object sender, EventArgs e)
 		{
@@ -913,7 +909,7 @@ namespace BizHawk.Client.EmuHawk
 		{
 			using MovieHeaderEditor form = new(CurrentTasMovie, Config)
 			{
-				Owner = Owner,
+				Owner = this,
 				Location = this.ChildPointToScreen(TasView)
 			};
 			form.ShowDialogOnScreen();
@@ -927,7 +923,7 @@ namespace BizHawk.Client.EmuHawk
 				(s, k) => { CurrentTasMovie.TasStateManager.UpdateSettings(s, k); },
 				false)
 			{
-				Owner = Owner,
+				Owner = this,
 				Location = this.ChildPointToScreen(TasView)
 			};
 			form.ShowDialogOnScreen();
@@ -937,7 +933,7 @@ namespace BizHawk.Client.EmuHawk
 		{
 			using EditCommentsForm form = new(CurrentTasMovie, false)
 			{
-				Owner = Owner,
+				Owner = this,
 				StartPosition = FormStartPosition.Manual,
 				Location = this.ChildPointToScreen(TasView)
 			};
@@ -952,7 +948,7 @@ namespace BizHawk.Client.EmuHawk
 				Config!.PathEntries,
 				readOnly: false)
 			{
-				Owner = Owner,
+				Owner = this,
 				StartPosition = FormStartPosition.Manual,
 				Location = this.ChildPointToScreen(TasView)
 			};
@@ -967,7 +963,7 @@ namespace BizHawk.Client.EmuHawk
 				(s, k) => { Config.Movies.DefaultTasStateManagerSettings = s; },
 				true)
 			{
-				Owner = Owner,
+				Owner = this,
 				Location = this.ChildPointToScreen(TasView)
 			};
 			form.ShowDialogOnScreen();
@@ -1089,7 +1085,7 @@ namespace BizHawk.Client.EmuHawk
 		{
 			using TAStudioColorSettingsForm form = new(Palette, p => Settings.Palette = p)
 			{
-				Owner = Owner,
+				Owner = this,
 				StartPosition = FormStartPosition.Manual,
 				Location = this.ChildPointToScreen(TasView)
 			};
