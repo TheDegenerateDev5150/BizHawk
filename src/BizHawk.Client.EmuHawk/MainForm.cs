@@ -2012,49 +2012,63 @@ namespace BizHawk.Client.EmuHawk
 		{
 			if (Emulator.HasSaveRam())
 			{
-				try // zero says: this is sort of sketchy... but this is no time for rearchitecting
-				{
-					var saveRamPath = Config.PathEntries.SaveRamAbsolutePath(Game, MovieSession.Movie);
-					if (Config.AutosaveSaveRAM)
-					{
-						var saveram = new FileInfo(saveRamPath);
-						var autosave = new FileInfo(Config.PathEntries.AutoSaveRamAbsolutePath(Game, MovieSession.Movie));
-						if (autosave.Exists && autosave.LastWriteTime > saveram.LastWriteTime)
-						{
-							AddOnScreenMessage("AutoSaveRAM is newer than last saved SaveRAM");
-						}
-					}
+				var saveRam = new FileInfo(Config.PathEntries.SaveRamAbsolutePath(Game, MovieSession.Movie));
+				var autoSaveRam = new FileInfo(Config.PathEntries.AutoSaveRamAbsolutePath(Game, MovieSession.Movie));
 
+				FileInfo saveramToLoad;
+				if (saveRam.Exists && (!autoSaveRam.Exists || autoSaveRam.LastWriteTimeUtc <= saveRam.LastWriteTimeUtc))
+				{
+					saveramToLoad = saveRam;
+				}
+				else if (autoSaveRam.Exists && !saveRam.Exists)
+				{
+					AddOnScreenMessage("SaveRAM missing! Loading autosaved SaveRAM instead.", 5);
+					saveramToLoad = autoSaveRam;
+				}
+				else if (saveRam.Exists && autoSaveRam.Exists)
+				{
+					bool result = ShowMessageBox2(
+						owner: this,
+						"The autosaved SaveRAM is more recent than the normal SaveRAM.\n" +
+						"This could happen due to a crash or because files were manually modified.\n" +
+						"Do you want to load the autosave instead of the older SaveRAM file?",
+						"Load autosaved SaveRAM?",
+						EMsgBoxIcon.Error);
+
+					saveramToLoad = result ? autoSaveRam : saveRam;
+				}
+				else
+				{
+					// no saveram to load
+					return;
+				}
+
+				try
+				{
 					byte[] sram;
 
 					// some cores might not know how big the saveram ought to be, so just send it the whole file
 					if (Emulator is AppleII or C64 or DOSBox or MGBAHawk or NeoGeoPort or NES { BoardName: "FDS" })
 					{
-						sram = File.ReadAllBytes(saveRamPath);
+						sram = File.ReadAllBytes(saveramToLoad.FullName);
 					}
 					else
 					{
 						var oldRam = Emulator.AsSaveRam().CloneSaveRam();
-						if (oldRam == null)
-						{
-							// we're eating this one now. The possible negative consequence is that a user could lose
-							// their saveram and not know why
-							// ShowMessageBox(owner: null, "Error: tried to load saveram, but core would not accept it?");
-							return;
-						}
+						Debug.Assert(oldRam is not null, $"Tried loading existing saveram, but {nameof(ISaveRam.CloneSaveRam)} returned null!");
 
 						// why do we silently truncate\pad here instead of warning\erroring?
 						sram = new byte[oldRam.Length];
-						using var reader = new BinaryReader(new FileStream(saveRamPath, FileMode.Open, FileAccess.Read));
-						reader.Read(sram, 0, sram.Length);
+						using var fs = saveramToLoad.OpenRead();
+						_ = fs.Read(sram, 0, sram.Length);
 					}
 
 					Emulator.AsSaveRam().StoreSaveRam(sram);
-					AutoFlushSaveRamIn = Config.FlushSaveRamFrames;
 				}
-				catch (IOException)
+				catch (IOException e)
 				{
 					AddOnScreenMessage("An error occurred while loading Sram");
+					Console.Error.WriteLine(e);
 				}
 			}
 		}
@@ -2067,11 +2081,10 @@ namespace BizHawk.Client.EmuHawk
 				if (autosave)
 				{
 					path = Config.PathEntries.AutoSaveRamAbsolutePath(Game, MovieSession.Movie);
-					AutoFlushSaveRamIn = Config.FlushSaveRamFrames;
 				}
 				else
 				{
-					path =  Config.PathEntries.SaveRamAbsolutePath(Game, MovieSession.Movie);
+					path = Config.PathEntries.SaveRamAbsolutePath(Game, MovieSession.Movie);
 				}
 
 				var file = new FileInfo(path);
@@ -2079,46 +2092,45 @@ namespace BizHawk.Client.EmuHawk
 				var newFile = new FileInfo(newPath);
 				var backupPath = $"{path}.bak";
 				var backupFile = new FileInfo(backupPath);
-				if (file.Directory != null && !file.Directory.Exists)
-				{
-					try
-					{
-						file.Directory.Create();
-					}
-					catch
-					{
-						AddOnScreenMessage($"Unable to flush SaveRAM to: {newFile.Directory}");
-						return false;
-					}
-				}
 
 				var saveram = Emulator.AsSaveRam().CloneSaveRam();
 				if (saveram == null)
 					return true;
 
-				FileStream fs = new(newPath, FileMode.Create, FileAccess.Write);
-				using (BinaryWriter writer = new(fs, Encoding.UTF8, leaveOpen: true)) writer.Write(saveram);
-				fs.Flush(flushToDisk: true);
-				fs.Dispose();
-
-				if (file.Exists)
+				try
 				{
-					if (Config.BackupSaveram)
+					Directory.CreateDirectory(file.DirectoryName!);
+					using (var fs = File.Create(newPath))
 					{
-						if (backupFile.Exists)
+						fs.Write(saveram, 0, saveram.Length);
+						fs.Flush(flushToDisk: true);
+					}
+
+					if (file.Exists)
+					{
+						if (Config.BackupSaveram)
 						{
-							backupFile.Delete();
+							if (backupFile.Exists)
+							{
+								backupFile.Delete();
+							}
+
+							file.MoveTo(backupPath);
 						}
+						else
+						{
+							file.Delete();
+						}
+					}
 
-						file.MoveTo(backupPath);
-					}
-					else
-					{
-						file.Delete();
-					}
+					newFile.MoveTo(path);
 				}
-
-				newFile.MoveTo(path);
+				catch (IOException e)
+				{
+					AddOnScreenMessage("Failed to flush saveram!");
+					Console.Error.WriteLine(e);
+					return false;
+				}
 			}
 
 			return true;
@@ -3169,9 +3181,11 @@ namespace BizHawk.Client.EmuHawk
 
 				if (Config.AutosaveSaveRAM)
 				{
-					if (AutoFlushSaveRamIn-- <= 0)
+					AutoFlushSaveRamIn--;
+					if (AutoFlushSaveRamIn <= 0)
 					{
 						FlushSaveRAM(true);
+						AutoFlushSaveRamIn = Config.FlushSaveRamFrames;
 					}
 				}
 				// why not skip audio if the user doesn't want sound
@@ -3952,15 +3966,8 @@ namespace BizHawk.Client.EmuHawk
 					// Don't load Save Ram if a movie is being loaded
 					if (!MovieSession.NewMovieQueued)
 					{
-						if (File.Exists(Config.PathEntries.SaveRamAbsolutePath(loader.Game, MovieSession.Movie)))
-						{
-							LoadSaveRam();
-						}
-						else if (Config.AutosaveSaveRAM
-							&& File.Exists(Config.PathEntries.AutoSaveRamAbsolutePath(loader.Game, MovieSession.Movie)))
-						{
-							AddOnScreenMessage("AutoSaveRAM found, but SaveRAM was not saved");
-						}
+						LoadSaveRam();
+						AutoFlushSaveRamIn = Config.FlushSaveRamFrames;
 					}
 
 					var previousRom = CurrentlyOpenRom;
@@ -4094,20 +4101,21 @@ namespace BizHawk.Client.EmuHawk
 					AddOnScreenMessage("SRAM cleared.");
 				}
 			}
-			else if (Emulator.HasSaveRam() && Emulator.AsSaveRam().SaveRamModified)
+			else if (Emulator.HasSaveRam())
 			{
-				if (!FlushSaveRAM())
+				while (true)
 				{
-					var msgRes = ShowMessageBox2(
-						owner: null,
-						"Failed flushing the game's Save RAM to your disk.\nClose without flushing Save RAM?",
-						"Directory IO Error",
+					if (FlushSaveRAM()) break;
+
+					var result = ShowMessageBox3(
+						owner: this,
+						"Failed flushing the game's Save RAM to your disk.\n" +
+						"Do you want to try again?",
+						"IOError while writing SaveRAM",
 						EMsgBoxIcon.Error);
 
-					if (!msgRes)
-					{
-						return;
-					}
+					if (result is false) break;
+					if (result is null) return;
 				}
 			}
 

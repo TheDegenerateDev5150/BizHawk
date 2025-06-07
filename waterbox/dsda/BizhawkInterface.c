@@ -2,6 +2,8 @@
 
 bool foundIWAD = false;
 bool wipeDone = true;
+int lookHeld[4] = { 0 };
+int lastButtons[4] = { 0 };
 AutomapButtons last_buttons = { 0 };
 
 void render_updates(struct PackedRenderInfo *renderInfo)
@@ -110,24 +112,101 @@ void automap_inputs(AutomapButtons buttons)
   last_buttons = buttons;
 }
 
-void player_input(struct PackedPlayerInput *inputs, int playerId)
+void player_input(struct PackedPlayerInput *src, int id)
 {
-  local_cmds[playerId].forwardmove = inputs->RunSpeed;
-  local_cmds[playerId].sidemove    = inputs->StrafingSpeed;
-  local_cmds[playerId].lookfly     = inputs->FlyLook;
-  local_cmds[playerId].arti        = inputs->ArtifactUse;
-  local_cmds[playerId].angleturn   = inputs->TurningSpeed;
+  int lspeed = 0;
+  int look = 0;
+  int flyheight = 0;
+  int buttons = src->Buttons & EXTRA_BUTTON_MASK;
+  player_t *player = &players[consoleplayer];
+  ticcmd_t *dest = &local_cmds[id];
 
-  if (inputs->Buttons.Fire) local_cmds[playerId].buttons |= 0b00000001;
-  if (inputs->Buttons.Use)  local_cmds[playerId].buttons |= 0b00000010;
-  if (inputs->EndPlayer)    local_cmds[playerId].arti    |= 0b01000000;
-  if (inputs->Jump)         local_cmds[playerId].arti    |= 0b10000000;
+  dest->forwardmove = src->RunSpeed;
+  dest->sidemove    = src->StrafingSpeed;
+  dest->lookfly     = src->FlyLook;
+  dest->arti        = src->ArtifactUse; // use specific artifact (also jump/die)
+  dest->angleturn   = src->TurningSpeed;
+  dest->buttons     = src->Buttons & REGULAR_BUTTON_MASK;
 
-  if (inputs->WeaponSelect)
+  // explicitly select artifact through in-game GUI
+  if (buttons & INVENTORY_LEFT && !(lastButtons[id] & INVENTORY_LEFT))
+    InventoryMoveLeft ();
+
+  if (buttons & INVENTORY_RIGHT && !(lastButtons[id] & INVENTORY_RIGHT))
+    InventoryMoveRight();
+
+  if (buttons & INVENTORY_SKIP && !(lastButtons[id] & INVENTORY_SKIP))
+  { /* TODO */ }
+
+  /* THE REST IS COPYPASTE FROM G_BuildTiccmd()!!! */
+
+  if (buttons & ARTIFACT_USE && !(lastButtons[id] & ARTIFACT_USE))
   {
-    local_cmds[playerId].buttons |= BT_CHANGE;
-    local_cmds[playerId].buttons |= (inputs->WeaponSelect - 1) << BT_WEAPONSHIFT;
+    // use currently selected artifact
+    if (inventory)
+    {
+      player->readyArtifact = player->inventory[inv_ptr].type;
+      inventory = false;
+      dest->arti &= ~AFLAG_MASK; // leave jump/die intact, zero out the rest
+    }
+    else
+    {
+      dest->arti |= player->inventory[inv_ptr].type & AFLAG_MASK;
+    }
   }
+
+  // look/fly up/down/center keys override analog value
+  if (buttons & LOOK_DOWN || buttons & LOOK_UP)
+    ++lookHeld[id];
+  else
+    lookHeld[id] = 0;
+
+  if (lookHeld[id] < SLOWTURNTICS)
+    lspeed = 1;
+  else
+    lspeed = 2;
+
+  if (buttons & LOOK_UP)     look      =  lspeed;
+  if (buttons & LOOK_DOWN)   look      = -lspeed;
+  if (buttons & LOOK_CENTER) look      = TOCENTER;
+  if (buttons & FLY_UP)      flyheight =  5; // note that the actual flyheight will be twice this
+  if (buttons & FLY_DOWN)    flyheight = -5;
+  if (buttons & FLY_CENTER)
+  {
+    flyheight = TOCENTER;
+    look      = TOCENTER;
+  }
+
+  if (player->playerstate == PST_LIVE /*&& !dsda_FreeAim()*/)
+  {
+      if (look < 0) look += 16;
+      dest->lookfly = look;
+  }
+  if (flyheight < 0) flyheight += 16;
+  dest->lookfly |= flyheight << 4;
+
+  // weapon selection
+  if (dest->buttons & BT_CHANGE)
+  {
+    int newweapon = src->WeaponSelect - 1;
+
+    if (!demo_compatibility)
+    {
+      // only select chainsaw from '1' if it's owned, it's
+      // not already in use, and the player prefers it or
+      // the fist is already in use, or the player does not
+      // have the berserker strength.
+      if (newweapon==wp_fist
+        && player->weaponowned[wp_chainsaw]
+        && player->readyweapon!=wp_chainsaw
+        && (player->readyweapon==wp_fist || !player->powers[pw_strength] || P_WeaponPreferred(wp_chainsaw, wp_fist)))
+        newweapon = wp_chainsaw;
+    }
+
+    dest->buttons |= (newweapon) << BT_WEAPONSHIFT;
+  }
+
+  lastButtons[id] = buttons;
 }
 
 ECL_EXPORT void dsda_get_audio(int *n, void **buffer)
@@ -180,7 +259,7 @@ ECL_EXPORT bool dsda_frame_advance(AutomapButtons buttons, struct PackedPlayerIn
   // Setting inputs
   headlessClearTickCommand();
 
-  if (renderInfo->RenderVideo)
+  if (renderInfo->RenderVideo && gamestate == GS_LEVEL)
     automap_inputs(buttons);
 
   dsda_reveal_map = renderInfo->MapDetails;
@@ -293,7 +372,6 @@ ECL_EXPORT int dsda_init(struct InitSettings *settings, int argc, char **argv)
   return 1;
 }
 
-
 ECL_EXPORT int dsda_add_wad_file(const char *filename, const int size, ECL_ENTRY int (*feload_archive_cb)(const char *filename, uint8_t *buffer, int maxsize))
 {
   printf("Loading WAD '%s' of size %d...\n", filename, size);
@@ -378,19 +456,18 @@ ECL_EXPORT int dsda_add_wad_file(const char *filename, const int size, ECL_ENTRY
 // TODO: expose sectors and linedefs like xdre does (but better)
 ECL_EXPORT char dsda_read_memory_array(int type, uint32_t addr)
 {
-  char out_of_bounts = 0xFF;
-  char null_thing = 0x88;
-  int padded_size = 512; // sizeof(mobj_t) is 464 but we pad for nice representation
+  if (type != ARRAY_THINGS)
+    return MEMORY_OUT_OF_BOUNDS;
 
-  if (addr >= numthings * padded_size)
-    return out_of_bounts;
+  if (addr >= numthings * MEMORY_PADDED_THING)
+    return MEMORY_OUT_OF_BOUNDS;
 
-  int index = addr / padded_size;
-  int offset = addr % padded_size;
+  int index = addr / MEMORY_PADDED_THING;
+  int offset = addr % MEMORY_PADDED_THING;
   mobj_t *mobj = mobj_ptrs[index];
 
-  if (mobj == NULL)
-    return null_thing;
+  if (mobj == NULL || offset >= sizeof(mobj_t))
+    return MEMORY_NULL;
 
   char *data = (char *)mobj + offset;  
   return *data;

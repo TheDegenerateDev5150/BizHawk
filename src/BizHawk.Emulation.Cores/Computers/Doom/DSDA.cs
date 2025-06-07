@@ -25,21 +25,19 @@ namespace BizHawk.Emulation.Cores.Computers.Doom
 		[CoreConstructor(VSystemID.Raw.Doom)]
 		public DSDA(CoreLoadParameters<DoomSettings, DoomSyncSettings> lp)
 		{
-			var ser = new BasicServiceProvider(this);
-			ServiceProvider = ser;
+			ServiceProvider = new BasicServiceProvider(this);
 			_finalSyncSettings = _syncSettings = lp.SyncSettings ?? new DoomSyncSettings();
 			_settings = lp.Settings ?? new DoomSettings();
-			_comm = lp.Comm;
+			Comm = lp.Comm;
 			_loadCallback = LoadCallback;
-			ControllerDefinition = CreateControllerDefinition(_syncSettings);
 
 			// Gathering information for the rest of the wads
 			_wadFiles = lp.Roms;
 
 			// Checking for correct IWAD configuration
-			_pwadFiles = new();
-			bool foundIWAD = false;
-			string IWADName = "";
+			_pwadFiles = [ ];
+			var foundIWAD = false;
+			var IWADName = "";
 
 			foreach (var wadFile in _wadFiles)
 			{
@@ -48,7 +46,13 @@ namespace BizHawk.Emulation.Cores.Computers.Doom
 				if (wadFile.RomData is [ (byte) 'I', (byte) 'W', (byte) 'A', (byte) 'D', .. ])
 				{
 					// Check not more than one IWAD is provided
-					if (foundIWAD) throw new Exception($"More than one IWAD provided. Trying to load '{wadFile.RomPath}', but IWAD '{IWADName}' was already provided");
+					if (foundIWAD)
+					{
+						throw new ArgumentException(
+							$"More than one IWAD provided. Trying to load '{wadFile.RomPath}', but IWAD '{IWADName}' was already provided",
+							paramName: nameof(lp));
+					}
+
 					IWADName = wadFile.RomPath;
 					_iwadFile = wadFile;
 					foundIWAD = true;
@@ -62,14 +66,18 @@ namespace BizHawk.Emulation.Cores.Computers.Doom
 
 				if (!recognized)
 				{
-					throw new Exception($"Unrecognized WAD provided: '{wadFile.RomPath}' has non-standard header.");
+					throw new ArgumentException(
+						$"Unrecognized WAD provided: '{wadFile.RomPath}' has non-standard header.",
+						paramName: nameof(lp));
 				}
 			}
 
 			// Check at least one IWAD was provided
 			if (!foundIWAD)
 			{
-				throw new Exception($"No IWAD was provided");
+				throw new ArgumentException(
+					"No IWAD was provided",
+					paramName: nameof(lp));
 			}
 
 			// Getting dsda-doom.wad -- required by DSDA
@@ -97,7 +105,7 @@ namespace BizHawk.Emulation.Cores.Computers.Doom
 			else
 			{
 				multiplier = _settings.ScaleFactor - resolutions.Length + 1;
-				resolution = resolutions[resolutions.Length - 1];
+				resolution = resolutions[^1];
 			}
 
 			BufferWidth = resolution.X * multiplier;
@@ -151,7 +159,9 @@ namespace BizHawk.Emulation.Cores.Computers.Doom
 					_gameMode = _core.dsda_add_wad_file(_iwadFile.RomPath, _iwadFile.RomData.Length, _loadCallback);
 					if (_gameMode is LibDSDA.GameMode.Fail)
 					{
-						throw new Exception($"Could not load WAD file: '{_iwadFile.RomPath}'");
+						throw new ArgumentException(
+							$"Could not load WAD file: '{_iwadFile.RomPath}'",
+							paramName: nameof(lp));
 					}
 
 					// Adding PWAD file(s)
@@ -160,18 +170,22 @@ namespace BizHawk.Emulation.Cores.Computers.Doom
 						_gameMode = _core.dsda_add_wad_file(wadFile.RomPath, wadFile.RomData.Length, _loadCallback);
 						if (_gameMode is LibDSDA.GameMode.Fail)
 						{
-							throw new Exception($"Could not load WAD file: '{wadFile.RomPath}'");
+							throw new ArgumentException(
+								$"Could not load WAD file: '{wadFile.RomPath}'",
+								paramName: nameof(lp));
 						}
 					}
 
 					_elf.AddReadonlyFile(_configFile, "dsda-doom.cfg");
 
-					var initSettings = _syncSettings.GetNativeSettings(lp.Game);
+					var initSettings = _syncSettings.GetNativeSettings();
 					CreateArguments(initSettings);
 					var initResult = _core.dsda_init(ref initSettings, _args.Count, _args.ToArray());
 					if (!initResult)
 					{
-						throw new Exception($"{nameof(_core.dsda_init)}() failed");
+						throw new ArgumentException(
+							$"{nameof(_core.dsda_init)}() failed",
+							paramName: nameof(lp));
 					}
 
 					VsyncNumerator = 35;
@@ -185,7 +199,7 @@ namespace BizHawk.Emulation.Cores.Computers.Doom
 
 					if (_pwadFiles.Count > 0)
 					{
-						SortedList<string> hashes = new();
+						SortedList<string> hashes = [ ];
 
 						foreach (var file in _pwadFiles)
 						{
@@ -209,6 +223,21 @@ namespace BizHawk.Emulation.Cores.Computers.Doom
 
 				// Registering memory domains
 				SetupMemoryDomains();
+
+				if (lp.Game[nameof(ControllerType.Doom)])
+				{
+					_syncSettings.InputFormat = ControllerType.Doom;
+				}
+				else if (lp.Game[nameof(ControllerType.Heretic)])
+				{
+					_syncSettings.InputFormat = ControllerType.Heretic;
+				}
+				else if (lp.Game[nameof(ControllerType.Hexen)])
+				{
+					_syncSettings.InputFormat = ControllerType.Hexen;
+				}
+
+				ControllerDefinition = CreateControllerDefinition(_syncSettings);
 			}
 			catch
 			{
@@ -219,12 +248,10 @@ namespace BizHawk.Emulation.Cores.Computers.Doom
 
 		private void CreateArguments(LibDSDA.InitSettings initSettings)
 		{
-			_args = new List<string>
-			{
-				"dsda",
-			};
-
-			_args.Add("-warp");
+			_args =
+			[
+				"dsda", "-warp",
+			];
 			ConditionalArg(_syncSettings.InitialEpisode is not 0
 				&& _gameMode != LibDSDA.GameMode.Commercial,
 				$"{_syncSettings.InitialEpisode}");
@@ -255,8 +282,18 @@ namespace BizHawk.Emulation.Cores.Computers.Doom
 
 		private string GetFullName(IRomAsset rom) => Path.GetFileName(rom.RomPath.SubstringAfter('|'));
 
+		private static bool PlayerPresent(DoomSyncSettings syncSettings, int port) =>
+			port switch
+			{
+				1 => syncSettings.Player1Present,
+				2 => syncSettings.Player2Present,
+				3 => syncSettings.Player3Present,
+				4 => syncSettings.Player4Present,
+				_ => false
+			};
+
 		// ReSharper disable once PrivateFieldCanBeConvertedToLocalVariable
-		internal CoreComm _comm { get; }
+		internal CoreComm Comm { get; }
 		private readonly WaterboxHost _elf;
 		private readonly LibDSDA _core;
 		private readonly LibDSDA.load_archive_cb _loadCallback;
@@ -282,8 +319,8 @@ namespace BizHawk.Emulation.Cores.Computers.Doom
 		private readonly byte[] _dsdaWadFileData;
 		private readonly byte[] _configFile;
 		private int[] _turnHeld = [ 0, 0, 0, 0 ];
-		private int _turnCarry = 0; // Chocolate Doom mouse behaviour (enabled in upstream by default)
-		private bool _lastGammaInput = false;
+		private int _turnCarry; // Chocolate Doom mouse behaviour (enabled in upstream by default)
+		private bool _lastGammaInput;
 		private List<string> _args;
 		private IRomAsset _iwadFile;
 		private List<IRomAsset> _wadFiles;
