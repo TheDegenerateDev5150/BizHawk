@@ -500,8 +500,7 @@ namespace BizHawk.Emulation.Cores.Computers.AmstradCPC
             /// </summary>
             public void DoSeek()
             {
-                if (CurrentState != DriveMainState.Recalibrate &&
-                    CurrentState != DriveMainState.Seek)
+                if (CurrentState is not (DriveMainState.Recalibrate or DriveMainState.Seek))
                 {
                     // no seek/recalibrate has been asked for
                     return;
@@ -547,8 +546,7 @@ namespace BizHawk.Emulation.Cores.Computers.AmstradCPC
                             if (CurrentTrack == SeekingTrack)
                             {
                                 // we are already at the required track
-                                if (CurrentState == DriveMainState.Recalibrate &&
-                                    !FLAG_TRACK0)
+                                if (CurrentState is DriveMainState.Recalibrate && !FLAG_TRACK0)
                                 {
                                     // recalibration fail
                                     SeekIntState = SeekIntStatus.Abnormal;
@@ -566,8 +564,7 @@ namespace BizHawk.Emulation.Cores.Computers.AmstradCPC
                                     break;
                                 }
 
-                                if (CurrentState == DriveMainState.Recalibrate &&
-                                    FLAG_TRACK0)
+                                if (CurrentState is DriveMainState.Recalibrate && FLAG_TRACK0)
                                 {
                                     // recalibration success
                                     SeekIntState = SeekIntStatus.Normal;

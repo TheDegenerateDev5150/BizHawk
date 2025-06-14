@@ -319,7 +319,7 @@ namespace BizHawk.Client.EmuHawk
 
 			if (settings.UseWindowSize)
 			{
-				if (form.FormBorderStyle == FormBorderStyle.Sizable || form.FormBorderStyle == FormBorderStyle.SizableToolWindow)
+				if (form.FormBorderStyle is FormBorderStyle.Sizable or FormBorderStyle.SizableToolWindow)
 				{
 					form.Size = settings.WindowSize;
 				}
@@ -877,13 +877,7 @@ namespace BizHawk.Client.EmuHawk
 		public string GenerateDefaultCheatFilename()
 		{
 			var path = _config.PathEntries.CheatsAbsolutePath(_game.System);
-
-			var f = new FileInfo(path);
-			if (f.Directory != null && !f.Directory.Exists)
-			{
-				f.Directory.Create();
-			}
-
+			new FileInfo(path).Directory?.Create();
 			return Path.Combine(path, $"{_game.FilesystemSafeName()}.cht");
 		}
 

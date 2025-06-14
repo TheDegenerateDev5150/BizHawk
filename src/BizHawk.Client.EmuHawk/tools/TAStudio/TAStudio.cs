@@ -114,6 +114,8 @@ namespace BizHawk.Client.EmuHawk
 			public bool AutoadjustInput { get; set; }
 			public TAStudioPalette Palette { get; set; }
 			public int MaxUndoSteps { get; set; } = 1000;
+			public int RewindStep { get; set; } = 1;
+			public int RewindStepFast { get; set; } = 4;
 		}
 
 		public TAStudio()
@@ -1079,13 +1081,7 @@ namespace BizHawk.Client.EmuHawk
 
 		protected override bool ProcessCmdKey(ref Message msg, Keys keyData)
 		{
-			if (keyData == Keys.Tab
-				|| keyData == (Keys.Shift | Keys.Tab)
-				|| keyData == Keys.Space)
-			{
-				return true;
-			}
-
+			if (keyData is Keys.Tab or (Keys.Shift | Keys.Tab) or Keys.Space) return true;
 			return base.ProcessCmdKey(ref msg, keyData);
 		}
 

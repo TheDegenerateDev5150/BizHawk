@@ -8,19 +8,13 @@ namespace BizHawk.Emulation.Cores.Computers.Doom
 	{
 		public static ControllerDefinition CreateControllerDefinition(DoomSyncSettings settings)
 		{
-			var controller = new ControllerDefinition($"{settings.InputFormat} Input Format");
+			var controller = new ControllerDefinition("Doom Controller");
 			var longtics = settings.TurningResolution == TurningResolution.Longtics;
-			int playersPresent = Convert.ToInt32(settings.Player1Present)
-				| Convert.ToInt32(settings.Player2Present) << 1
-				| Convert.ToInt32(settings.Player3Present) << 2
-				| Convert.ToInt32(settings.Player4Present) << 3;
 
-			for (int i = 0; i < 4; i++)
+			for (int port = 1; port <= 4; port++)
 			{
-				if ((playersPresent & (1 << i)) is not 0)
+				if (PlayerPresent(settings, port))
 				{
-					var port = i + 1;
-
 					controller
 						.AddAxis($"P{port} Run Speed", (-50).RangeTo(50), 0)
 						.AddAxis($"P{port} Strafing Speed", (-50).RangeTo(50), 0)
@@ -35,7 +29,7 @@ namespace BizHawk.Emulation.Cores.Computers.Doom
 					}
 
 					controller
-						.AddAxis($"P{port} Weapon Select", (0).RangeTo(7), 0)
+						.AddAxis($"P{port} Weapon Select", 0.RangeTo(7), 0)
 						.AddAxis($"P{port} Mouse Running", (-128).RangeTo(127), 0)
 						// current max raw mouse delta is 180
 						.AddAxis($"P{port} Mouse Turning", (longtics ? -180 : -128).RangeTo(longtics ? 180 : 127), 0);
@@ -44,7 +38,7 @@ namespace BizHawk.Emulation.Cores.Computers.Doom
 					{
 						controller
 							.AddAxis($"P{port} Fly / Look", (-7).RangeTo(7), 0)
-							.AddAxis($"P{port} Use Artifact", (0).RangeTo(10), 0);
+							.AddAxis($"P{port} Use Artifact", 0.RangeTo(10), 0);
 					}
 
 					controller.BoolButtons.AddRange([
@@ -77,6 +71,27 @@ namespace BizHawk.Emulation.Cores.Computers.Doom
 							$"P{port} Weapon Select 5",
 							$"P{port} Weapon Select 6",
 							$"P{port} Weapon Select 7",
+						]);
+					}
+
+					if (settings.InputFormat is not ControllerType.Doom)
+					{
+						if (settings.InputFormat is ControllerType.Heretic)
+						{
+							// TODO
+							//controller.BoolButtons.Add($"P{port} Inventory Skip");
+						}
+
+						controller.BoolButtons.AddRange([
+							$"P{port} Inventory Left",
+							$"P{port} Inventory Right",
+							$"P{port} Use Artifact",
+							$"P{port} Look Up",
+							$"P{port} Look Down",
+							$"P{port} Look Center",
+							$"P{port} Fly Up",
+							$"P{port} Fly Down",
+							$"P{port} Fly Center",
 						]);
 					}
 				}
