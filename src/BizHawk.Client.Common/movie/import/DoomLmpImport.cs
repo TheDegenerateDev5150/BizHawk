@@ -61,10 +61,10 @@ namespace BizHawk.Client.Common
 			// Versions up to 1.2 use a 7-byte header - first byte is a skill level.
 			// Versions after 1.2 use a 13-byte header - first byte is a demoversion.
 			// BOOM's demoversion starts from 200
-			if (!((version >= DemoVersion.Skill_1   && version <= DemoVersion.Skill_5    ) ||
-			      (version >= DemoVersion.Doom_1_4  && version <= DemoVersion.DoomClassic) ||
-			      (version >= DemoVersion.Boom_2_00 && version <= DemoVersion.PrBoomPlus ) ||
-			      (version == DemoVersion.MBF21)))
+			if (version is not ((>= DemoVersion.Skill_1 and <= DemoVersion.Skill_5)
+				or (>= DemoVersion.Doom_1_4 and <= DemoVersion.DoomClassic)
+				or (>= DemoVersion.Boom_2_00 and <= DemoVersion.PrBoomPlus)
+				or DemoVersion.MBF21))
 			{
 				Result.Errors.Add($"Unknown demo format: {version}");
 				return;
@@ -241,11 +241,11 @@ namespace BizHawk.Client.Common
 				}
 				controller.AcceptNewAxis($"P{port} Turning Speed", unchecked((sbyte) input[i++]));
 
-				var buttons = input[i++];
-				controller[$"P{port} Fire"] = (buttons & 0b00000001) is not 0;
-				controller[$"P{port} Use"]  = (buttons & 0b00000010) is not 0;
-				var changeWeapon            = (buttons & 0b00000100) is not 0;
-				var weapon = changeWeapon ? (((buttons & 0b00111000) >> 3) + 1) : 0;
+				var buttons = (LibDSDA.Buttons)input[i++];
+				controller[$"P{port} Fire"] = (buttons & LibDSDA.Buttons.Fire)         is not 0;
+				controller[$"P{port} Use" ] = (buttons & LibDSDA.Buttons.Use)          is not 0;
+				var changeWeapon            = (buttons & LibDSDA.Buttons.ChangeWeapon) is not 0;
+				var weapon = changeWeapon ? (((int)(buttons & LibDSDA.Buttons.WeaponMask) >> 3) + 1) : 0;
 				controller.AcceptNewAxis($"P{port} Weapon Select", weapon);
 			}
 
