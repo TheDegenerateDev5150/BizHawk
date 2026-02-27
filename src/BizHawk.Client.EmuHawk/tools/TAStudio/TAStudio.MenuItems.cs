@@ -299,7 +299,7 @@ namespace BizHawk.Client.EmuHawk
 			ReselectClipboardMenuItem.Enabled =
 				PasteMenuItem.Enabled =
 				PasteInsertMenuItem.Enabled = TasView.AnyRowsSelected
-				&& (Clipboard.GetDataObject()?.GetDataPresent(DataFormats.StringFormat) ?? false);
+				&& (Clipboard.GetDataObject()?.GetDataPresent(DataFormats.UnicodeText) ?? false);
 
 			ClearGreenzoneMenuItem.Enabled =
 				CurrentTasMovie != null && CurrentTasMovie.TasStateManager.Count > 1;
@@ -422,8 +422,8 @@ namespace BizHawk.Client.EmuHawk
 		{
 			if (!TasView.AnyRowsSelected) return;
 			IDataObject data = Clipboard.GetDataObject();
-			if (data?.GetDataPresent(DataFormats.StringFormat) is not true) return;
-			string input = (string)data.GetData(DataFormats.StringFormat);
+			if (data?.GetDataPresent(DataFormats.UnicodeText) is not true) return;
+			string input = (string) data.GetData(DataFormats.UnicodeText);
 			if (string.IsNullOrWhiteSpace(input)) return;
 			string[] lines = input.Split('\n');
 			if (lines.Length is 0) return;
@@ -928,7 +928,7 @@ namespace BizHawk.Client.EmuHawk
 
 			pasteToolStripMenuItem.Enabled =
 				pasteInsertToolStripMenuItem.Enabled =
-				(Clipboard.GetDataObject()?.GetDataPresent(DataFormats.StringFormat) ?? false)
+				(Clipboard.GetDataObject()?.GetDataPresent(DataFormats.UnicodeText) ?? false)
 				&& TasView.AnyRowsSelected;
 
 			var selectionIsSingleRow = TasView.SelectedRows.CountIsExactly(1);
