@@ -40,3 +40,5 @@ System.InvalidOperationException: o noes
 
 [//]: # "That's it! If you'd like to help more, you could try a dev build (see Testing in the readme) or an older release. Click submit now and you can edit it later."
 
+Check if completed:
+- [ ] I, the issue author, have read the contribution terms on [generative AI](https://github.com/TASEmulators/BizHawk/blob/master/contributing.md#generative-ai-policy) (last updated 2024-06-22) and am compliant

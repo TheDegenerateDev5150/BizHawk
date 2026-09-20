@@ -31,3 +31,6 @@ labels: "Request: New core/port/re-port"
 - (savestate quality)
 
 [//]: # "Code speaks louder than words: If you're able to make a proof-of-concept, pushing it to GitHub and putting a link here will speed up the process."
+
+Check if completed:
+- [ ] I, the issue author, have read the contribution terms on [generative AI](https://github.com/TASEmulators/BizHawk/blob/master/contributing.md#generative-ai-policy) (last updated 2024-06-22) and am compliant

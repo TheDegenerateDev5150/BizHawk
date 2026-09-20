@@ -10,4 +10,4 @@
 [//]: # "Apart from the mandatory license signature, these tasks are optional, but doing them could save reviewers some time and get the PR merged sooner."
 Check if completed:
 - [ ] I have run any relevant test suites
-- [ ] I, the commit author, have read the [licensing terms for contributors](https://github.com/TASEmulators/BizHawk/blob/master/contributing.md#copyrights-and-licensing) (last updated 2024-06-22) and am compliant
+- [ ] I, the commit author, have read the contribution terms on [licensing](https://github.com/TASEmulators/BizHawk/blob/master/contributing.md#copyrights-and-licensing) and [generative AI](https://github.com/TASEmulators/BizHawk/blob/master/contributing.md#generative-ai-policy) (last updated 2024-06-22) and am compliant
